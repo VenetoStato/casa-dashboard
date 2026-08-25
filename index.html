@@ -77,17 +77,16 @@
     }
     .card.next { outline: 2px solid #2d6a4f; }
     .card.done { opacity: .62; }
-    .sync {
+    .share {
       margin-top: 14px; background: var(--card); border: 1px solid var(--line);
       border-radius: 14px; padding: 12px;
     }
-    .sync p { margin: 0 0 8px; color: var(--muted); font-size: .88rem; line-height: 1.4; }
-    .sync label { display: block; font-size: .8rem; font-weight: 700; margin: 8px 0 4px; }
-    .sync input {
-      width: 100%; border: 1px solid var(--line); border-radius: 10px;
-      padding: 8px 10px; font: inherit; background: #faf7f1;
+    .share p { margin: 0 0 8px; color: var(--muted); font-size: .88rem; line-height: 1.4; }
+    .share textarea {
+      width: 100%; min-height: 72px; border: 1px solid var(--line); border-radius: 10px;
+      padding: 8px 10px; font: inherit; background: #faf7f1; resize: vertical;
     }
-    .sync .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+    .share .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
     button.btn {
       border: 0; cursor: pointer; font: inherit; font-weight: 700;
       background: var(--go); color: #fff; padding: 9px 12px; border-radius: 10px;
@@ -106,7 +105,7 @@
       <p class="sub">Link ufficiali · un tap e sei nel sito giusto</p>
       <div class="progress" aria-hidden="true"><span id="bar"></span></div>
       <p class="count" id="count">0 / 0 fatte</p>
-      <p id="syncmsg">Le note si condividono dopo aver messo parola chiave + token, una volta.</p>
+      <p id="syncmsg">Tutto resta su questo telefono. Per l’altro: manda il messaggio/link.</p>
     </header>
 
     <h2>Da fare subito</h2>
@@ -279,96 +278,33 @@
       <input class="note" data-n="cer" placeholder="POD in cabina AC001E00869?">
     </article>
 
-    <div class="sync">
-      <p>Stessa parola sui due telefoni. Il token serve solo per <b>scrivere</b> (lo crei una volta sull’account del repo, permesso Contents). Token e parola restano su questo telefono, non nel sito. In GitHub le note sono criptate.</p>
-      <label for="pass">Parola chiave condivisa</label>
-      <input id="pass" type="password" autocomplete="off" placeholder="uguale sull’altro telefono">
-      <label for="tok">Token GitHub (fine-grained, solo questo repo)</label>
-      <input id="tok" type="password" autocomplete="off" placeholder="github_pat_…">
+    <div class="share">
+      <p>Salva qui (automatico). Poi <b>Manda aggiornamento</b>: esce un link da inoltrare. Se l’altro lo apre, la sua pagina si aggiorna. Se copia il messaggio e torna qui, la pagina cerca il codice negli appunti.</p>
       <div class="row">
-        <button class="btn" id="saveAccess" type="button">Salva accesso</button>
-        <button class="btn ghost" id="pullNow" type="button">Aggiorna</button>
-        <a class="btn ghost" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Crea token</a>
+        <button class="btn" id="shareBtn" type="button">Manda aggiornamento</button>
+        <button class="btn ghost" id="copyBtn" type="button">Copia testo</button>
+        <button class="btn ghost" id="clipBtn" type="button">Cerca negli appunti</button>
       </div>
+      <textarea id="pack" readonly placeholder="Qui compare il messaggio da girare"></textarea>
     </div>
     <footer>
-      Spunta o scrivi: dopo 2 secondi parte un commit automatico. L’altro telefono lo vede al prossimo aggiornamento (o riaprendo la pagina).
+      Una pagina web non può aprire WhatsApp e scorrere le chat. Può leggere il link che gli mandi, o il testo che hai copiato.
     </footer>
   </div>
   <script>
-    const OWNER = "VenetoStato";
-    const REPO = "casa-dashboard";
-    const PATH = "state.json";
-    const LS = {
-      pass: "p_pass",
-      tok: "p_tok",
-      state: "p_state"
-    };
+    const PAGE = "https://venetostato.github.io/casa-dashboard/";
+    const MARK = "P1.";
+    const LS = "p_state";
     const boxes = [...document.querySelectorAll("input[type=checkbox][data-k]")];
     const notes = [...document.querySelectorAll("input.note[data-n]")];
     const msg = document.getElementById("syncmsg");
+    const pack = document.getElementById("pack");
     let current = { v: 1, fields: {} };
-    let remoteSha = null;
-    let timer = null;
-    let busy = false;
-
-    const passEl = document.getElementById("pass");
-    const tokEl = document.getElementById("tok");
-    passEl.value = localStorage.getItem(LS.pass) || "";
-    tokEl.value = localStorage.getItem(LS.tok) || "";
+    let lastImport = "";
 
     function say(t, kind) {
       msg.textContent = t;
       msg.className = kind || "";
-    }
-    function pass() { return (passEl.value || localStorage.getItem(LS.pass) || "").trim(); }
-    function tok() { return (tokEl.value || localStorage.getItem(LS.tok) || "").trim(); }
-    function headers() {
-      const h = { Accept: "application/vnd.github+json" };
-      if (tok()) h.Authorization = "Bearer " + tok();
-      return h;
-    }
-    function b64e(str) {
-      const bytes = new TextEncoder().encode(str);
-      let bin = "";
-      bytes.forEach(b => { bin += String.fromCharCode(b); });
-      return btoa(bin);
-    }
-    function b64d(b64) {
-      const bin = atob(b64.replace(/\n/g, ""));
-      const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
-      return new TextDecoder().decode(bytes);
-    }
-    function bufB64(buf) {
-      const u = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
-      let s = "";
-      u.forEach(b => { s += String.fromCharCode(b); });
-      return btoa(s);
-    }
-    function b64Buf(b64) {
-      const s = atob(b64);
-      const u = new Uint8Array(s.length);
-      for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
-      return u;
-    }
-    async function deriveKey(pw, salt) {
-      const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveKey"]);
-      return crypto.subtle.deriveKey(
-        { name: "PBKDF2", salt, iterations: 120000, hash: "SHA-256" },
-        base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]
-      );
-    }
-    async function encryptState(obj, pw) {
-      const salt = crypto.getRandomValues(new Uint8Array(16));
-      const iv = crypto.getRandomValues(new Uint8Array(12));
-      const key = await deriveKey(pw, salt);
-      const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(obj)));
-      return { alg: "A256GCM", iter: 120000, s: bufB64(salt), iv: bufB64(iv), ct: bufB64(ct) };
-    }
-    async function decryptState(env, pw) {
-      const key = await deriveKey(pw, b64Buf(env.s));
-      const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64Buf(env.iv) }, key, b64Buf(env.ct));
-      return JSON.parse(new TextDecoder().decode(pt));
     }
     function emptyState() { return { v: 1, fields: {} }; }
     function collect(bump) {
@@ -395,7 +331,7 @@
     }
     function apply(state, forceNotes) {
       current = state;
-      localStorage.setItem(LS.state, JSON.stringify(state));
+      localStorage.setItem(LS, JSON.stringify(state));
       boxes.forEach(b => {
         const f = state.fields[b.dataset.k];
         if (f) b.checked = !!f.on;
@@ -405,6 +341,7 @@
         if (f && (forceNotes || document.activeElement !== el)) el.value = f.note || "";
       });
       paint();
+      refreshPack();
     }
     function paint() {
       const n = boxes.filter(b => b.checked).length;
@@ -419,112 +356,142 @@
         if (next) marked = true;
       });
     }
-    async function ghGet() {
-      const r = await fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + "/contents/" + PATH + "?ref=main", {
-        headers: headers(), cache: "no-store"
-      });
-      if (r.status === 404) return { sha: null, json: { empty: true } };
-      if (!r.ok) throw new Error("Lettura GitHub " + r.status);
-      const j = await r.json();
-      return { sha: j.sha, json: JSON.parse(b64d(j.content)) };
+    function b64url(str) {
+      const bytes = new TextEncoder().encode(str);
+      let bin = "";
+      bytes.forEach(b => { bin += String.fromCharCode(b); });
+      return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
     }
-    async function ghPut(json, sha) {
-      const body = { message: "sync", content: b64e(JSON.stringify(json)), branch: "main" };
-      if (sha) body.sha = sha;
-      const r = await fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + "/contents/" + PATH, {
-        method: "PUT",
-        headers: Object.assign({ "Content-Type": "application/json" }, headers()),
-        body: JSON.stringify(body)
-      });
-      if (r.status === 409) return { conflict: true };
-      if (!r.ok) throw new Error("Scrittura GitHub " + r.status);
-      const j = await r.json();
-      return { sha: j.content && j.content.sha };
+    function unb64url(s) {
+      s = s.replace(/-/g, "+").replace(/_/g, "/");
+      while (s.length % 4) s += "=";
+      const bin = atob(s);
+      const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+      return new TextDecoder().decode(bytes);
     }
-    async function pull() {
-      const remote = await ghGet();
-      remoteSha = remote.sha;
-      if (!remote.json || remote.json.empty) return current;
-      if (!pass()) throw new Error("Manca la parola chiave per leggere le note condivise");
+    function encode(state) { return MARK + b64url(JSON.stringify(state)); }
+    function shareText(state) {
+      const code = encode(state);
+      const link = PAGE + "#p=" + code.slice(MARK.length);
+      return "Aggiornamento pratiche\n" + link + "\n" + code;
+    }
+    function refreshPack() {
+      pack.value = shareText(current);
+    }
+    function findCode(text) {
+      if (!text) return "";
+      const hash = text.match(/[#&]p=([A-Za-z0-9_-]+)/);
+      if (hash) return hash[1];
+      const mark = text.match(/P1\.([A-Za-z0-9_-]+)/);
+      if (mark) return mark[1];
+      const only = text.trim();
+      if (/^[A-Za-z0-9_-]{20,}$/.test(only)) return only;
+      return "";
+    }
+    function importCode(code, src) {
+      if (!code || code === lastImport) return false;
       try {
-        return await decryptState(remote.json, pass());
+        const incoming = JSON.parse(unb64url(code));
+        if (!incoming || !incoming.fields) return false;
+        apply(merge(current, incoming), true);
+        lastImport = code;
+        history.replaceState(null, "", location.pathname + location.search);
+        say("Aggiornato da " + src + ".", "ok");
+        return true;
       } catch (e) {
-        throw new Error("Parola chiave diversa dall’altro telefono");
+        say("Messaggio non valido.", "err");
+        return false;
       }
     }
-    async function push() {
-      if (!pass()) { say("Metti la parola chiave per condividere.", "err"); return; }
-      if (!tok()) { say("Manca il token: puoi leggere, non salvare per l’altro.", "err"); return; }
-      if (busy) return;
-      busy = true;
+    function importFromText(text, src) {
+      const code = findCode(text);
+      if (!code) return false;
+      return importCode(code, src);
+    }
+    async function readClipboard() {
       try {
-        const local = collect();
-        let remoteState = emptyState();
-        try {
-          const got = await ghGet();
-          remoteSha = got.sha;
-          if (got.json && !got.json.empty) remoteState = await decryptState(got.json, pass());
-        } catch (e) {
-          if (remoteSha) throw e;
-        }
-        const merged = merge(remoteState, local);
-        const env = await encryptState(merged, pass());
-        const res = await ghPut(env, remoteSha);
-        if (res.conflict) {
-          busy = false;
-          await pullApply();
-          return push();
-        }
-        remoteSha = res.sha || remoteSha;
-        apply(merged, false);
-        say("Salvato e condiviso · " + new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }), "ok");
-      } catch (e) {
-        say(e.message || "Sync fallita", "err");
-      } finally {
-        busy = false;
-      }
+        const t = await navigator.clipboard.readText();
+        if (importFromText(t, "appunti")) return true;
+      } catch (e) {}
+      return false;
     }
-    async function pullApply() {
+    function persist(bump) {
+      current = collect(bump);
+      localStorage.setItem(LS, JSON.stringify(current));
+      paint();
+      refreshPack();
+      say("Salvato su questo telefono.");
+    }
+
+    document.getElementById("copyBtn").onclick = async () => {
+      persist();
+      refreshPack();
       try {
-        const st = merge(current, await pull());
-        apply(st, true);
-        say("Aggiornato dall’altro telefono · " + new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }), "ok");
+        await navigator.clipboard.writeText(pack.value);
+        say("Testo copiato. Incollalo in chat.", "ok");
       } catch (e) {
-        say(e.message || "Lettura fallita", "err");
+        pack.select();
+        say("Selezionato: copia e manda.", "ok");
       }
-    }
-    function schedule() {
-      clearTimeout(timer);
-      timer = setTimeout(push, 2000);
-      say("Salvo tra 2 secondi…");
-    }
-    document.getElementById("saveAccess").onclick = () => {
-      localStorage.setItem(LS.pass, passEl.value.trim());
-      localStorage.setItem(LS.tok, tokEl.value.trim());
-      say("Accesso salvato su questo telefono. Ora le modifiche si condividono da sole.", "ok");
-      pullApply().then(push);
     };
-    document.getElementById("pullNow").onclick = () => pullApply();
-    boxes.forEach(b => {
-      b.onchange = () => { current = collect(b.dataset.k); localStorage.setItem(LS.state, JSON.stringify(current)); paint(); schedule(); };
+    document.getElementById("shareBtn").onclick = async () => {
+      persist();
+      refreshPack();
+      const text = pack.value;
+      const code = encode(current).slice(MARK.length);
+      const url = PAGE + "#p=" + code;
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: "Pratiche", text: "Aggiornamento pratiche", url });
+          say("Mandato. L’altro apre il link e si aggiorna.", "ok");
+          return;
+        } catch (e) {
+          if (e && e.name === "AbortError") return;
+        }
+      }
+      try {
+        await navigator.clipboard.writeText(text);
+        say("Niente menu condividi: testo copiato, incollalo in chat.", "ok");
+      } catch (e) {
+        pack.select();
+      }
+    };
+    document.getElementById("clipBtn").onclick = async () => {
+      if (!(await readClipboard())) say("Nessun aggiornamento negli appunti. Copia il messaggio e riprova, oppure apri il link.", "err");
+    };
+    document.addEventListener("paste", ev => {
+      const t = (ev.clipboardData && ev.clipboardData.getData("text")) || "";
+      if (findCode(t)) {
+        ev.preventDefault();
+        importFromText(t, "incolla");
+      }
     });
-    notes.forEach(el => {
-      el.oninput = () => { current = collect(el.dataset.n); localStorage.setItem(LS.state, JSON.stringify(current)); schedule(); };
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden) readClipboard();
     });
-    document.addEventListener("visibilitychange", () => { if (!document.hidden && pass()) pullApply(); });
+    window.addEventListener("focus", () => { readClipboard(); });
+    boxes.forEach(b => { b.onchange = () => persist(b.dataset.k); });
+    notes.forEach(el => { el.oninput = () => persist(el.dataset.n); });
+
     try {
-      const cached = JSON.parse(localStorage.getItem(LS.state) || "null");
+      const cached = JSON.parse(localStorage.getItem(LS) || "null");
       if (cached && cached.fields) apply(cached, true);
       else {
         const legacy = emptyState();
         boxes.forEach(b => {
-          legacy.fields[b.dataset.k] = { on: localStorage.getItem("casa_" + b.dataset.k) === "1", note: localStorage.getItem("casa_n_" + b.dataset.k) || "", t: 1 };
+          legacy.fields[b.dataset.k] = {
+            on: localStorage.getItem("casa_" + b.dataset.k) === "1",
+            note: localStorage.getItem("casa_n_" + b.dataset.k) || "",
+            t: 1
+          };
         });
         apply(legacy, true);
       }
     } catch (e) { paint(); }
-    if (pass()) pullApply();
-    setInterval(() => { if (tok() && !document.hidden) pullApply(); }, 40000);
+
+    const fromHash = findCode(location.hash + location.search);
+    if (fromHash) importCode(fromHash, "link");
+    else readClipboard();
   </script>
 </body>
 </html>

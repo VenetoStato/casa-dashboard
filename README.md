@@ -1,5 +1,4 @@
 # Pratiche
 
-Pagina statica con link a servizi pubblici.
-
-Le note condivise stanno in `state.json` in forma cifrata.
+Pagina statica. Spunte e note restano nel browser.
+Per l’altro telefono si manda il link generato dalla pagina.
