@@ -75,6 +75,27 @@
       width: 100%; margin-top: 8px; border: 1px solid var(--line); border-radius: 10px;
       padding: 8px 10px; font: inherit; background: #faf7f1; color: var(--ink);
     }
+    .card.next { outline: 2px solid #2d6a4f; }
+    .card.done { opacity: .62; }
+    .sync {
+      margin-top: 14px; background: var(--card); border: 1px solid var(--line);
+      border-radius: 14px; padding: 12px;
+    }
+    .sync p { margin: 0 0 8px; color: var(--muted); font-size: .88rem; line-height: 1.4; }
+    .sync label { display: block; font-size: .8rem; font-weight: 700; margin: 8px 0 4px; }
+    .sync input {
+      width: 100%; border: 1px solid var(--line); border-radius: 10px;
+      padding: 8px 10px; font: inherit; background: #faf7f1;
+    }
+    .sync .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+    button.btn {
+      border: 0; cursor: pointer; font: inherit; font-weight: 700;
+      background: var(--go); color: #fff; padding: 9px 12px; border-radius: 10px;
+    }
+    button.btn.ghost { background: transparent; color: var(--go2); border: 1px solid #b7c9be; }
+    #syncmsg { font-size: .88rem; color: var(--muted); }
+    #syncmsg.ok { color: var(--go); }
+    #syncmsg.err { color: #9b2c2c; }
     footer { margin-top: 36px; color: var(--muted); font-size: .85rem; }
   </style>
 </head>
@@ -85,6 +106,7 @@
       <p class="sub">Link ufficiali · un tap e sei nel sito giusto</p>
       <div class="progress" aria-hidden="true"><span id="bar"></span></div>
       <p class="count" id="count">0 / 0 fatte</p>
+      <p id="syncmsg">Le note si condividono dopo aver messo parola chiave + token, una volta.</p>
     </header>
 
     <h2>Da fare subito</h2>
@@ -165,6 +187,7 @@
         <a class="btn sec" href="mailto:cuccioli@porticonlus.it?subject=Iscrizione%20nido%202027-2028&body=Buongiorno,%0Avorremmo informazioni sul bando iscrizioni 2027/28.%0AGrazie">Prepara mail</a>
         <a class="btn ghost" href="tel:042155569">0421 55569</a>
       </div>
+      <input class="note" data-n="n1" placeholder="Mail trovata / inviata">
     </article>
     <article class="card">
       <div class="top">
@@ -178,6 +201,7 @@
         <a class="btn" href="https://www.inps.it/it/it/search.html?q=bonus+asilo+nido" target="_blank" rel="noopener">Bonus nido INPS</a>
         <a class="btn ghost" href="https://www.porticonlus.it/infanzia/il-nido-dei-cuccioli/" target="_blank" rel="noopener">Tariffe / iscrizioni</a>
       </div>
+      <input class="note" data-n="n2" placeholder="Domanda / rimborso">
     </article>
 
     <h2>Ticket bimbo</h2>
@@ -192,6 +216,7 @@
       <div class="btns">
         <a class="btn" href="https://sistemats1.sanita.finanze.it/portale/it/web/guest/esenzioni-da-reddito-cittadini" target="_blank" rel="noopener">Scarica certificato</a>
       </div>
+      <input class="note" data-n="e01" placeholder="Certificato ok?">
     </article>
 
     <h2>Mobili</h2>
@@ -254,29 +279,252 @@
       <input class="note" data-n="cer" placeholder="POD in cabina AC001E00869?">
     </article>
 
+    <div class="sync">
+      <p>Stessa parola sui due telefoni. Il token serve solo per <b>scrivere</b> (lo crei una volta sull’account del repo, permesso Contents). Token e parola restano su questo telefono, non nel sito. In GitHub le note sono criptate.</p>
+      <label for="pass">Parola chiave condivisa</label>
+      <input id="pass" type="password" autocomplete="off" placeholder="uguale sull’altro telefono">
+      <label for="tok">Token GitHub (fine-grained, solo questo repo)</label>
+      <input id="tok" type="password" autocomplete="off" placeholder="github_pat_…">
+      <div class="row">
+        <button class="btn" id="saveAccess" type="button">Salva accesso</button>
+        <button class="btn ghost" id="pullNow" type="button">Aggiorna</button>
+        <a class="btn ghost" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Crea token</a>
+      </div>
+    </div>
     <footer>
-      Le spunte restano su questo dispositivo. I pulsanti verdi aprono i siti ufficiali.
+      Spunta o scrivi: dopo 2 secondi parte un commit automatico. L’altro telefono lo vede al prossimo aggiornamento (o riaprendo la pagina).
     </footer>
   </div>
   <script>
-    const s = (k,v) => localStorage.setItem("casa_"+k, v);
-    const g = (k) => localStorage.getItem("casa_"+k);
+    const OWNER = "VenetoStato";
+    const REPO = "casa-dashboard";
+    const PATH = "state.json";
+    const LS = {
+      pass: "p_pass",
+      tok: "p_tok",
+      state: "p_state"
+    };
     const boxes = [...document.querySelectorAll("input[type=checkbox][data-k]")];
     const notes = [...document.querySelectorAll("input.note[data-n]")];
+    const msg = document.getElementById("syncmsg");
+    let current = { v: 1, fields: {} };
+    let remoteSha = null;
+    let timer = null;
+    let busy = false;
+
+    const passEl = document.getElementById("pass");
+    const tokEl = document.getElementById("tok");
+    passEl.value = localStorage.getItem(LS.pass) || "";
+    tokEl.value = localStorage.getItem(LS.tok) || "";
+
+    function say(t, kind) {
+      msg.textContent = t;
+      msg.className = kind || "";
+    }
+    function pass() { return (passEl.value || localStorage.getItem(LS.pass) || "").trim(); }
+    function tok() { return (tokEl.value || localStorage.getItem(LS.tok) || "").trim(); }
+    function headers() {
+      const h = { Accept: "application/vnd.github+json" };
+      if (tok()) h.Authorization = "Bearer " + tok();
+      return h;
+    }
+    function b64e(str) {
+      const bytes = new TextEncoder().encode(str);
+      let bin = "";
+      bytes.forEach(b => { bin += String.fromCharCode(b); });
+      return btoa(bin);
+    }
+    function b64d(b64) {
+      const bin = atob(b64.replace(/\n/g, ""));
+      const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+      return new TextDecoder().decode(bytes);
+    }
+    function bufB64(buf) {
+      const u = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+      let s = "";
+      u.forEach(b => { s += String.fromCharCode(b); });
+      return btoa(s);
+    }
+    function b64Buf(b64) {
+      const s = atob(b64);
+      const u = new Uint8Array(s.length);
+      for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i);
+      return u;
+    }
+    async function deriveKey(pw, salt) {
+      const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveKey"]);
+      return crypto.subtle.deriveKey(
+        { name: "PBKDF2", salt, iterations: 120000, hash: "SHA-256" },
+        base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]
+      );
+    }
+    async function encryptState(obj, pw) {
+      const salt = crypto.getRandomValues(new Uint8Array(16));
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const key = await deriveKey(pw, salt);
+      const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(obj)));
+      return { alg: "A256GCM", iter: 120000, s: bufB64(salt), iv: bufB64(iv), ct: bufB64(ct) };
+    }
+    async function decryptState(env, pw) {
+      const key = await deriveKey(pw, b64Buf(env.s));
+      const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: b64Buf(env.iv) }, key, b64Buf(env.ct));
+      return JSON.parse(new TextDecoder().decode(pt));
+    }
+    function emptyState() { return { v: 1, fields: {} }; }
+    function collect(bump) {
+      const fields = {};
+      const now = Date.now();
+      boxes.forEach(b => {
+        const k = b.dataset.k;
+        const prev = current.fields[k] || {};
+        const noteEl = notes.find(n => n.dataset.n === k);
+        const on = !!b.checked;
+        const note = noteEl ? noteEl.value : (prev.note || "");
+        const changed = on !== !!prev.on || note !== (prev.note || "");
+        fields[k] = { on, note, t: changed || bump === k ? now : (prev.t || now) };
+      });
+      return { v: 1, fields };
+    }
+    function merge(a, b) {
+      const out = { v: 1, fields: { ...(a.fields || {}) } };
+      Object.entries(b.fields || {}).forEach(([k, y]) => {
+        const x = out.fields[k];
+        if (!x || (y.t || 0) >= (x.t || 0)) out.fields[k] = y;
+      });
+      return out;
+    }
+    function apply(state, forceNotes) {
+      current = state;
+      localStorage.setItem(LS.state, JSON.stringify(state));
+      boxes.forEach(b => {
+        const f = state.fields[b.dataset.k];
+        if (f) b.checked = !!f.on;
+      });
+      notes.forEach(el => {
+        const f = state.fields[el.dataset.n];
+        if (f && (forceNotes || document.activeElement !== el)) el.value = f.note || "";
+      });
+      paint();
+    }
     function paint() {
       const n = boxes.filter(b => b.checked).length;
       document.getElementById("count").textContent = n + " / " + boxes.length + " fatte";
       document.getElementById("bar").style.width = (100 * n / boxes.length) + "%";
+      let marked = false;
+      document.querySelectorAll(".card").forEach(card => {
+        const box = card.querySelector("input[type=checkbox][data-k]");
+        card.classList.toggle("done", !!(box && box.checked));
+        const next = box && !box.checked && !marked;
+        card.classList.toggle("next", next);
+        if (next) marked = true;
+      });
     }
+    async function ghGet() {
+      const r = await fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + "/contents/" + PATH + "?ref=main", {
+        headers: headers(), cache: "no-store"
+      });
+      if (r.status === 404) return { sha: null, json: { empty: true } };
+      if (!r.ok) throw new Error("Lettura GitHub " + r.status);
+      const j = await r.json();
+      return { sha: j.sha, json: JSON.parse(b64d(j.content)) };
+    }
+    async function ghPut(json, sha) {
+      const body = { message: "sync", content: b64e(JSON.stringify(json)), branch: "main" };
+      if (sha) body.sha = sha;
+      const r = await fetch("https://api.github.com/repos/" + OWNER + "/" + REPO + "/contents/" + PATH, {
+        method: "PUT",
+        headers: Object.assign({ "Content-Type": "application/json" }, headers()),
+        body: JSON.stringify(body)
+      });
+      if (r.status === 409) return { conflict: true };
+      if (!r.ok) throw new Error("Scrittura GitHub " + r.status);
+      const j = await r.json();
+      return { sha: j.content && j.content.sha };
+    }
+    async function pull() {
+      const remote = await ghGet();
+      remoteSha = remote.sha;
+      if (!remote.json || remote.json.empty) return current;
+      if (!pass()) throw new Error("Manca la parola chiave per leggere le note condivise");
+      try {
+        return await decryptState(remote.json, pass());
+      } catch (e) {
+        throw new Error("Parola chiave diversa dall’altro telefono");
+      }
+    }
+    async function push() {
+      if (!pass()) { say("Metti la parola chiave per condividere.", "err"); return; }
+      if (!tok()) { say("Manca il token: puoi leggere, non salvare per l’altro.", "err"); return; }
+      if (busy) return;
+      busy = true;
+      try {
+        const local = collect();
+        let remoteState = emptyState();
+        try {
+          const got = await ghGet();
+          remoteSha = got.sha;
+          if (got.json && !got.json.empty) remoteState = await decryptState(got.json, pass());
+        } catch (e) {
+          if (remoteSha) throw e;
+        }
+        const merged = merge(remoteState, local);
+        const env = await encryptState(merged, pass());
+        const res = await ghPut(env, remoteSha);
+        if (res.conflict) {
+          busy = false;
+          await pullApply();
+          return push();
+        }
+        remoteSha = res.sha || remoteSha;
+        apply(merged, false);
+        say("Salvato e condiviso · " + new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }), "ok");
+      } catch (e) {
+        say(e.message || "Sync fallita", "err");
+      } finally {
+        busy = false;
+      }
+    }
+    async function pullApply() {
+      try {
+        const st = merge(current, await pull());
+        apply(st, true);
+        say("Aggiornato dall’altro telefono · " + new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }), "ok");
+      } catch (e) {
+        say(e.message || "Lettura fallita", "err");
+      }
+    }
+    function schedule() {
+      clearTimeout(timer);
+      timer = setTimeout(push, 2000);
+      say("Salvo tra 2 secondi…");
+    }
+    document.getElementById("saveAccess").onclick = () => {
+      localStorage.setItem(LS.pass, passEl.value.trim());
+      localStorage.setItem(LS.tok, tokEl.value.trim());
+      say("Accesso salvato su questo telefono. Ora le modifiche si condividono da sole.", "ok");
+      pullApply().then(push);
+    };
+    document.getElementById("pullNow").onclick = () => pullApply();
     boxes.forEach(b => {
-      b.checked = g(b.dataset.k) === "1";
-      b.onchange = () => { s(b.dataset.k, b.checked ? "1" : "0"); paint(); };
+      b.onchange = () => { current = collect(b.dataset.k); localStorage.setItem(LS.state, JSON.stringify(current)); paint(); schedule(); };
     });
     notes.forEach(el => {
-      el.value = g("n_"+el.dataset.n) || "";
-      el.oninput = () => s("n_"+el.dataset.n, el.value);
+      el.oninput = () => { current = collect(el.dataset.n); localStorage.setItem(LS.state, JSON.stringify(current)); schedule(); };
     });
-    paint();
+    document.addEventListener("visibilitychange", () => { if (!document.hidden && pass()) pullApply(); });
+    try {
+      const cached = JSON.parse(localStorage.getItem(LS.state) || "null");
+      if (cached && cached.fields) apply(cached, true);
+      else {
+        const legacy = emptyState();
+        boxes.forEach(b => {
+          legacy.fields[b.dataset.k] = { on: localStorage.getItem("casa_" + b.dataset.k) === "1", note: localStorage.getItem("casa_n_" + b.dataset.k) || "", t: 1 };
+        });
+        apply(legacy, true);
+      }
+    } catch (e) { paint(); }
+    if (pass()) pullApply();
+    setInterval(() => { if (tok() && !document.hidden) pullApply(); }, 40000);
   </script>
 </body>
 </html>

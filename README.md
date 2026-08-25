@@ -1,5 +1,5 @@
 # Pratiche
 
-Pagina statica con link a servizi pubblici (INPS, sanità, nido, GSE).
+Pagina statica con link a servizi pubblici.
 
-Apri `index.html` o GitHub Pages.
+Le note condivise stanno in `state.json` in forma cifrata.
