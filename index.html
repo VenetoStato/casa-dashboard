@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pratiche</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,520;9..144,700&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --ink: #1c1915;
+      --muted: #6b6258;
+      --card: #fffdf8;
+      --line: #e6ddd0;
+      --go: #2d6a4f;
+      --go2: #1b4332;
+      --warm: #c45c26;
+      --ok: #2d6a4f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Source Sans 3", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+    }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 28px 16px 80px; }
+    header { margin-bottom: 22px; }
+    h1 {
+      font-family: Fraunces, Georgia, serif;
+      font-size: clamp(1.8rem, 5vw, 2.4rem);
+      margin: 0 0 6px;
+      letter-spacing: -0.03em;
+    }
+    .sub { color: var(--muted); margin: 0; }
+    .progress {
+      margin: 16px 0 0;
+      background: #e8e0d4;
+      border-radius: 999px;
+      height: 8px;
+      overflow: hidden;
+    }
+    .progress > span { display: block; height: 100%; width: 0; background: var(--go); transition: width .3s; }
+    .count { color: var(--muted); font-size: .92rem; margin-top: 8px; }
+    h2 {
+      font-family: Fraunces, Georgia, serif;
+      font-size: 1.15rem;
+      margin: 28px 0 10px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 14px 14px 12px;
+      margin: 0 0 10px;
+      box-shadow: 0 1px 0 rgba(28,25,21,.04);
+    }
+    .top { display: flex; gap: 10px; align-items: flex-start; }
+    .card h3 { margin: 0 0 4px; font-size: 1.05rem; }
+    .card p { margin: 0; color: var(--muted); font-size: .92rem; line-height: 1.4; }
+    input[type=checkbox] {
+      width: 20px; height: 20px; margin-top: 2px; accent-color: var(--go); flex: none;
+    }
+    .btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+    a.btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      text-decoration: none; font-weight: 700; font-size: .92rem;
+      background: var(--go); color: #fff; padding: 9px 12px; border-radius: 10px;
+    }
+    a.btn.sec { background: #3d3a34; }
+    a.btn.ghost { background: transparent; color: var(--go2); border: 1px solid #b7c9be; }
+    .note {
+      width: 100%; margin-top: 8px; border: 1px solid var(--line); border-radius: 10px;
+      padding: 8px 10px; font: inherit; background: #faf7f1; color: var(--ink);
+    }
+    footer { margin-top: 36px; color: var(--muted); font-size: .85rem; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Pratiche</h1>
+      <p class="sub">Link ufficiali · un tap e sei nel sito giusto</p>
+      <div class="progress" aria-hidden="true"><span id="bar"></span></div>
+      <p class="count" id="count">0 / 0 fatte</p>
+    </header>
+
+    <h2>Da fare subito</h2>
+
+    <article class="card">
+      <div class="top">
+        <input type="checkbox" data-k="au">
+        <div>
+          <h3>Assegno Unico INPS</h3>
+          <p>~290–330 €/mese il primo anno + arretrati dal 7° mese di gravidanza. SPID → nuova domanda.</p>
+        </div>
+      </div>
+      <div class="btns">
+        <a class="btn" href="https://servizi2.inps.it/servizi/AssegnoUnicoFigli" target="_blank" rel="noopener">Apri domanda</a>
+        <a class="btn ghost" href="https://www.inps.it/" target="_blank" rel="noopener">Home INPS</a>
+      </div>
+      <input class="note" data-n="au" placeholder="Protocollo / data">
+    </article>
+
+    <article class="card">
+      <div class="top">
+        <input type="checkbox" data-k="bn">
+        <div>
+          <h3>Bonus nuovi nati 1.000 €</h3>
+          <p>Una tantum. Entro 120 giorni dalla nascita. Percorso: Sostegni → Per genitori → Bonus nuovi nati.</p>
+        </div>
+      </div>
+      <div class="btns">
+        <a class="btn" href="https://www.inps.it/it/it/search.html?q=bonus+nuovi+nati" target="_blank" rel="noopener">Apri bonus nascita</a>
+      </div>
+      <input class="note" data-n="bn" placeholder="Protocollo / data">
+    </article>
+
+    <article class="card">
+      <div class="top">
+        <input type="checkbox" data-k="ped">
+        <div>
+          <h3>Scelta pediatra ULSS 4</h3>
+          <p>Anagrafe Sanitaria ULSS 4. Servono documenti del minore. Mail: anagrafe.sandona@aulss4.veneto.it</p>
+        </div>
+      </div>
+      <div class="btns">
+        <a class="btn" href="https://salute.regione.veneto.it/servizi/cerca-medici-e-pediatri" target="_blank" rel="noopener">Cerca pediatri</a>
+        <a class="btn sec" href="https://aulss4.myprenota.it/anagrafe" target="_blank" rel="noopener">Prenota sportello</a>
+        <a class="btn ghost" href="mailto:anagrafe.sandona@aulss4.veneto.it">Scrivi mail</a>
+      </div>
+      <input class="note" data-n="ped" placeholder="Nome pediatra / data">
+    </article>
+
+    <h2>Comune</h2>
+    <article class="card">
+      <div class="top">
+        <input type="checkbox" data-k="com">
+        <div>
+          <h3>Sportello Famiglia San Donà</h3>
+          <p>Piazza Indipendenza 13 · 0421 590616 · kit nascita, bandi, voucher Regione 0–3 (edizione 2026 chiusa; prossima di solito in primavera).</p>
+        </div>
+      </div>
+      <div class="btns">
+        <a class="btn" href="https://www.comune.sandonadipiave.ve.it/home" target="_blank" rel="noopener">Sito Comune</a>
+        <a class="btn ghost" href="mailto:sportello.famiglia@sandonadipiave.net">Mail sportello</a>
+        <a class="btn ghost" href="tel:0421590616">Chiama</a>
+      </div>
+      <input class="note" data-n="com" placeholder="Note">
+    </article>
+
+    <h2>Nido dei Cuccioli — sett. 2027</h2>
+    <article class="card">
+      <div class="top">
+        <input type="checkbox" data-k="n1">
+        <div>
+          <h3>Recuperare le mail e scrivere al nido</h3>
+          <p>Via Bastianetto 10. Cerca in mail: porticonlus / cuccioli. Chiedi avviso per bando 2027/28 (di solito marzo 2027).</p>
+        </div>
+      </div>
+      <div class="btns">
+        <a class="btn" href="https://www.porticonlus.it/infanzia/il-nido-dei-cuccioli/" target="_blank" rel="noopener">Pagina nido</a>
+        <a class="btn sec" href="mailto:cuccioli@porticonlus.it?subject=Iscrizione%20nido%202027-2028&body=Buongiorno,%0Avorremmo informazioni sul bando iscrizioni 2027/28.%0AGrazie">Prepara mail</a>
+        <a class="btn ghost" href="tel:042155569">0421 55569</a>
+      </div>
+    </article>
+    <article class="card">
+      <div class="top">
+        <input type="checkbox" data-k="n2">
+        <div>
+          <h3>Iscrizione 2027/28 + bonus nido</h3>
+          <p>Quando apre il bando: domanda + bonifico. Poi rimborso INPS fino a 3.600 €/anno e voucher Regione se esce.</p>
+        </div>
+      </div>
+      <div class="btns">
+        <a class="btn" href="https://www.inps.it/it/it/search.html?q=bonus+asilo+nido" target="_blank" rel="noopener">Bonus nido INPS</a>
+        <a class="btn ghost" href="https://www.porticonlus.it/infanzia/il-nido-dei-cuccioli/" target="_blank" rel="noopener">Tariffe / iscrizioni</a>
+      </div>
+    </article>
+
+    <h2>Ticket bimbo</h2>
+    <article class="card">
+      <div class="top">
+        <input type="checkbox" data-k="e01">
+        <div>
+          <h3>Esenzione ticket E01</h3>
+          <p>Sotto i 6 anni, visite ed esami specialistici senza ticket se il reddito familiare (730, non ISEE) è sotto 36.151,98 €. Pediatra SSN è già gratis. Scarica il certificato con SPID.</p>
+        </div>
+      </div>
+      <div class="btns">
+        <a class="btn" href="https://sistemats1.sanita.finanze.it/portale/it/web/guest/esenzioni-da-reddito-cittadini" target="_blank" rel="noopener">Scarica certificato</a>
+      </div>
+    </article>
+
+    <h2>Mobili</h2>
+    <article class="card">
+      <div class="top">
+        <input type="checkbox" data-k="mob">
+        <div>
+          <h3>Bonus mobili 50%</h3>
+          <p>Solo se avete già aperto una ristrutturazione dal 2025. Detrazione su max 5.000 € di mobili/elettrodomestici nuovi (fino a 2.500 € nel 730, in 10 anni). Paga con bonifico o carta. Senza CILA/SCIA non c’è.</p>
+        </div>
+      </div>
+      <div class="btns">
+        <a class="btn" href="https://www.agenziaentrate.gov.it/portale/aree-tematiche/casa/agevolazioni/bonus-mobili-ed-elettrodomestici" target="_blank" rel="noopener">Agenzia Entrate</a>
+      </div>
+      <input class="note" data-n="mob" placeholder="Avete CILA/SCIA? Data lavori">
+    </article>
+
+    <h2>GSE — fotovoltaico (senza spegnere)</h2>
+    <article class="card">
+      <div class="top">
+        <input type="checkbox" data-k="gse">
+        <div>
+          <h3>Capire che contratto ha l’impianto</h3>
+          <p>Area Clienti: Conto Energia, Scambio sul posto o Ritiro dedicato. Non inoltrare e non firmare disdette prima. Spegnere o spostare il punto di connessione può far perdere l’incentivo vecchio.</p>
+        </div>
+      </div>
+      <div class="btns">
+        <a class="btn" href="https://areaclienti.gse.it/" target="_blank" rel="noopener">Area Clienti GSE</a>
+        <a class="btn ghost" href="https://www.gse.it/supporto/in-evidenza/manutenzione-e-modifiche-guida-per-impianti-incentivati-in-conto-energia" target="_blank" rel="noopener">Cosa si può toccare</a>
+      </div>
+      <input class="note" data-n="gse" placeholder="POD, kW, anno, Conto Energia / SSP / RID">
+    </article>
+    <article class="card">
+      <div class="top">
+        <input type="checkbox" data-k="bat">
+        <div>
+          <h3>Batteria sull’impianto già messo</h3>
+          <p>Si aggiunge senza smontare i pannelli e senza chiudere il contratto GSE. Un elettricista aggiorna GAUDÌ e avvisa il GSE se c’è Conto Energia. IVA 10% + detrazione 50% prima casa (730). Una pratica sbagliata taglia l’incentivo vecchio.</p>
+        </div>
+      </div>
+      <div class="btns">
+        <a class="btn" href="https://areaclienti.gse.it/" target="_blank" rel="noopener">GSE</a>
+        <a class="btn ghost" href="https://bonusfiscali.enea.it/" target="_blank" rel="noopener">ENEA dopo i lavori</a>
+      </div>
+      <input class="note" data-n="bat" placeholder="Preventivo / tecnico">
+    </article>
+    <article class="card">
+      <div class="top">
+        <input type="checkbox" data-k="cer">
+        <div>
+          <h3>Entrare nella CER di San Donà (senza toccare i pannelli)</h3>
+          <p>ArtCom-cer è già attiva sulla cabina San Donà–Musile–Fossalta–Noventa. Si entra anche solo come consumatori: i pannelli restano accesi. Soldi = quota sull’energia condivisa, non un bonus unico. Se l’impianto è entrato in esercizio dopo il 16/12/2021 può valere anche come produttore. Info: Confartigianato via Perugia 2 o Confcommercio via Como 2.</p>
+        </div>
+      </div>
+      <div class="btns">
+        <a class="btn" href="https://artcom-cer.it/operativita/" target="_blank" rel="noopener">ArtCom-cer</a>
+        <a class="btn sec" href="https://www.gse.it/servizi-per-te/autoconsumo/mappa-interattiva-delle-cabine-primarie" target="_blank" rel="noopener">Mappa cabina (POD)</a>
+        <a class="btn ghost" href="https://www.gse.it/servizi-per-te/autoconsumo" target="_blank" rel="noopener">Regole GSE CER</a>
+      </div>
+      <input class="note" data-n="cer" placeholder="POD in cabina AC001E00869?">
+    </article>
+
+    <footer>
+      Le spunte restano su questo dispositivo. I pulsanti verdi aprono i siti ufficiali.
+    </footer>
+  </div>
+  <script>
+    const s = (k,v) => localStorage.setItem("casa_"+k, v);
+    const g = (k) => localStorage.getItem("casa_"+k);
+    const boxes = [...document.querySelectorAll("input[type=checkbox][data-k]")];
+    const notes = [...document.querySelectorAll("input.note[data-n]")];
+    function paint() {
+      const n = boxes.filter(b => b.checked).length;
+      document.getElementById("count").textContent = n + " / " + boxes.length + " fatte";
+      document.getElementById("bar").style.width = (100 * n / boxes.length) + "%";
+    }
+    boxes.forEach(b => {
+      b.checked = g(b.dataset.k) === "1";
+      b.onchange = () => { s(b.dataset.k, b.checked ? "1" : "0"); paint(); };
+    });
+    notes.forEach(el => {
+      el.value = g("n_"+el.dataset.n) || "";
+      el.oninput = () => s("n_"+el.dataset.n, el.value);
+    });
+    paint();
+  </script>
+</body>
+</html>
