@@ -84,9 +84,10 @@
     }
     .share p { margin: 0 0 8px; color: var(--muted); font-size: .88rem; line-height: 1.4; }
     .share textarea {
-      width: 100%; min-height: 72px; border: 1px solid var(--line); border-radius: 10px;
+      width: 100%; min-height: 88px; margin-top: 10px; border: 1px solid var(--line); border-radius: 10px;
       padding: 8px 10px; font: inherit; background: #faf7f1; resize: vertical;
     }
+    .share code { font-size: .86em; }
     .share .row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
     button.btn {
       border: 0; cursor: pointer; font: inherit; font-weight: 700;
@@ -287,16 +288,17 @@
     </article>
 
     <div class="share">
-      <p>Salva qui (automatico). Poi <b>Manda aggiornamento</b>: esce un link da inoltrare. Se l’altro lo apre, la sua pagina si aggiorna. Se copia il messaggio e torna qui, la pagina cerca il codice negli appunti.</p>
+      <p>Salva qui da solo. <b>Manda aggiornamento</b> crea un messaggio con link + codice. L’altro: apre il link, oppure copia il messaggio e preme <b>Applica</b>. WhatsApp a volte rompe il link: il codice <code>P1.</code> basta comunque.</p>
       <div class="row">
         <button class="btn" id="shareBtn" type="button">Manda aggiornamento</button>
         <button class="btn ghost" id="copyBtn" type="button">Copia testo</button>
+        <button class="btn ghost" id="applyBtn" type="button">Applica messaggio</button>
         <button class="btn ghost" id="clipBtn" type="button">Cerca negli appunti</button>
       </div>
-      <textarea id="pack" readonly placeholder="Qui compare il messaggio da girare"></textarea>
+      <textarea id="pack" placeholder="Qui il messaggio da mandare, o incolla quello ricevuto e premi Applica"></textarea>
     </div>
     <footer>
-      Una pagina web non può aprire WhatsApp e scorrere le chat. Può leggere il link che gli mandi, o il testo che hai copiato.
+      Una pagina web non legge le chat. Funziona con il link o col codice incollato.
     </footer>
   </div>
   <script>
@@ -349,7 +351,7 @@
         if (f && (forceNotes || document.activeElement !== el)) el.value = f.note || "";
       });
       paint();
-      refreshPack();
+      refreshPack(true);
     }
     function paint() {
       const n = boxes.filter(b => b.checked).length;
@@ -377,49 +379,54 @@
       const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
       return new TextDecoder().decode(bytes);
     }
-    function encode(state) { return MARK + b64url(JSON.stringify(state)); }
+    function payload(state) { return b64url(JSON.stringify(state)); }
     function shareText(state) {
-      const code = encode(state);
-      const link = PAGE + "#p=" + code.slice(MARK.length);
-      return "Aggiornamento pratiche\n" + link + "\n" + code;
+      const code = payload(state);
+      const link = PAGE + "?p=" + code;
+      return "Aggiornamento pratiche\n" + link + "\n" + MARK + code;
     }
-    function refreshPack() {
+    function refreshPack(force) {
+      if (!force && document.activeElement === pack) return;
       pack.value = shareText(current);
     }
     function findCode(text) {
       if (!text) return "";
-      const hash = text.match(/[#&]p=([A-Za-z0-9_-]+)/);
-      if (hash) return hash[1];
-      const mark = text.match(/P1\.([A-Za-z0-9_-]+)/);
+      const flat = String(text).replace(/[\s\u200b\u200c\u200d\ufeff]/g, "");
+      const mark = flat.match(/P1\.([A-Za-z0-9_-]{8,})/);
       if (mark) return mark[1];
-      const only = text.trim();
-      if (/^[A-Za-z0-9_-]{20,}$/.test(only)) return only;
+      const qp = flat.match(/[?&#]p=([A-Za-z0-9_-]{8,})/);
+      if (qp) return qp[1];
+      if (/^[A-Za-z0-9_-]{20,}$/.test(flat)) return flat;
       return "";
     }
-    function importCode(code, src) {
-      if (!code || code === lastImport) return false;
+    function importCode(code, src, quietDup) {
+      if (!code) return false;
+      if (code === lastImport) {
+        if (!quietDup) say("Questo aggiornamento è già stato applicato.", "ok");
+        return false;
+      }
       try {
         const incoming = JSON.parse(unb64url(code));
         if (!incoming || !incoming.fields) return false;
         apply(merge(current, incoming), true);
         lastImport = code;
-        history.replaceState(null, "", location.pathname + location.search);
+        history.replaceState(null, "", location.pathname);
         say("Aggiornato da " + src + ".", "ok");
         return true;
       } catch (e) {
-        say("Messaggio non valido.", "err");
+        say("Messaggio non valido. Incolla tutto il testo, compreso P1.", "err");
         return false;
       }
     }
-    function importFromText(text, src) {
+    function importFromText(text, src, quietDup) {
       const code = findCode(text);
       if (!code) return false;
-      return importCode(code, src);
+      return importCode(code, src, quietDup);
     }
     async function readClipboard() {
       try {
         const t = await navigator.clipboard.readText();
-        if (importFromText(t, "appunti")) return true;
+        if (importFromText(t, "appunti", true)) return true;
       } catch (e) {}
       return false;
     }
@@ -433,7 +440,7 @@
 
     document.getElementById("copyBtn").onclick = async () => {
       persist();
-      refreshPack();
+      pack.value = shareText(current);
       try {
         await navigator.clipboard.writeText(pack.value);
         say("Testo copiato. Incollalo in chat.", "ok");
@@ -444,14 +451,12 @@
     };
     document.getElementById("shareBtn").onclick = async () => {
       persist();
-      refreshPack();
-      const text = pack.value;
-      const code = encode(current).slice(MARK.length);
-      const url = PAGE + "#p=" + code;
+      const text = shareText(current);
+      pack.value = text;
       if (navigator.share) {
         try {
-          await navigator.share({ title: "Pratiche", text: "Aggiornamento pratiche", url });
-          say("Mandato. L’altro apre il link e si aggiorna.", "ok");
+          await navigator.share({ title: "Pratiche", text: text });
+          say("Mandato. L’altro apre il link o applica il codice P1.", "ok");
           return;
         } catch (e) {
           if (e && e.name === "AbortError") return;
@@ -459,20 +464,31 @@
       }
       try {
         await navigator.clipboard.writeText(text);
-        say("Niente menu condividi: testo copiato, incollalo in chat.", "ok");
+        say("Testo copiato. Incollalo in chat.", "ok");
       } catch (e) {
         pack.select();
       }
     };
+    document.getElementById("applyBtn").onclick = () => {
+      if (importFromText(pack.value, "messaggio")) return;
+      if (!findCode(pack.value)) say("Incolla qui il messaggio ricevuto e premi di nuovo Applica.", "err");
+    };
     document.getElementById("clipBtn").onclick = async () => {
-      if (!(await readClipboard())) say("Nessun aggiornamento negli appunti. Copia il messaggio e riprova, oppure apri il link.", "err");
+      try {
+        const t = await navigator.clipboard.readText();
+        if (importFromText(t, "appunti", false)) return;
+        if (!findCode(t)) say("Niente negli appunti. Copia il messaggio, poi Applica, oppure apri il link.", "err");
+      } catch (e) {
+        say("Il telefono non dà gli appunti. Incolla il messaggio qui sotto e premi Applica.", "err");
+      }
     };
     document.addEventListener("paste", ev => {
       const t = (ev.clipboardData && ev.clipboardData.getData("text")) || "";
-      if (findCode(t)) {
-        ev.preventDefault();
-        importFromText(t, "incolla");
-      }
+      if (!/P1\.|[?&#]p=/.test(String(t).replace(/\s/g, ""))) return;
+      if (ev.target && ev.target.classList && ev.target.classList.contains("note")) return;
+      if (ev.target === pack) return;
+      ev.preventDefault();
+      importFromText(t, "incolla");
     });
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) readClipboard();
@@ -497,8 +513,8 @@
       }
     } catch (e) { paint(); }
 
-    const fromHash = findCode(location.hash + location.search);
-    if (fromHash) importCode(fromHash, "link");
+    const fromLink = findCode(location.href);
+    if (fromLink) importCode(fromLink, "link");
     else readClipboard();
   </script>
 </body>
